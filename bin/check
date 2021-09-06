@@ -1,0 +1,50 @@
+#!/bin/bash -e
+
+
+DB=~/.oeis-data/stripped
+OPTS="$(getopt -l dup,update,match:,ref:,help -o d:u:h:m:r -n "$(basename $0)" -- "$@")"
+test $? -gt 0 && exit 1
+eval set -- "$OPTS"
+
+usage() {
+    1>&2 echo "Usage: $(basename $0) [commands,..]"
+    1>&2 echo "Commands are run in the order given"
+    1>&2 echo "    --(d)up:    dump duplicate entries"
+    1>&2 echo "    --(u)pdate: update oeis seq database"
+    1>&2 echo "    --(m)atch:  match some sequence with oeis"
+    1>&2 echo "    --(r)ef:    fetch reference text from oeis"
+    1>&2 echo "    --(h)elp:   print this message"
+    1>&2 echo ""
+    1>&2 echo "(s)hort opts wrapped with parens"
+}
+
+fetch () {
+    curl -s -C - -q 'https://oeis.org/stripped.gz' --output $DB.gz
+    gunzip -c $DB.gz > $DB
+}
+
+dups () {
+    ! test -s $DB && echo "$DB cannot be found" && exit 2
+    sort -k2 $DB | uniq -s 9 -D
+}
+
+match () {
+    local pat1=$(echo "$@" | sed 's/[, ]/\./g')
+    local pat2=$(echo "$@" | sed 's/[-, ]/\./g')
+    local orig="$@"
+    grepfn="/tmp/$(basename $0)-match"
+    echo "$pat1" > $grepfn
+    echo "$pat2" >> $grepfn
+    echo "$orig" >> $grepfn
+    cat $grepfn
+    grep --color=always -f $grepfn $DB
+}
+
+while : ; do case "$1" in
+    (--update|-u) fetch; shift ;;
+    (--dup|-d)    dups ; shift ;;
+    (--match|-m)  match $2 ; shift 2 ;;
+    (--ref|-r)    curl "https://oeis.org/search?q=id:${2}&fmt=text"; shift 2 ;;
+    (--help|-h)   usage; exit 2; ;;
+    (*) break;;
+esac; done
