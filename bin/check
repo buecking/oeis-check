@@ -1,0 +1,34 @@
+#!/bin/bash -e
+
+
+DB=~/.oeis-data/stripped
+OPTS="$(getopt -l dup,update,help -o d:u:h -n "$(basename $0)" -- "$@")"
+test $? -gt 0 && exit 1
+eval set -- "$OPTS"
+
+usage() {
+    1>&2 echo "Usage: $(basename $0) [commands,..]"
+    1>&2 echo "Commands are run in the order given"
+    1>&2 echo "    --dup:    dump duplicate entries"
+    1>&2 echo "    --update: update oeis seq database"
+    1>&2 echo "    --help:   print this message"
+    1>&2 echo ""
+    1>&2 echo "(s)hort opts wrapped with parens"
+}
+
+fetch () {
+    curl -s -C - -q 'https://oeis.org/stripped.gz' --output $DB.gz
+    gunzip -c $DB.gz > $DB
+}
+
+dups () {
+    ! test -s $DB && echo "$DB cannot be found" && exit 2
+    sort -k2 $DB | uniq -s 9 -D
+}
+
+while : ; do case "$1" in
+    (--update|-u) fetch; shift ;;
+    (--dup|-d)    dups ; shift ;;
+    (--help|-h)   usage; exit 2; ;;
+    (*) break;;
+esac; done
