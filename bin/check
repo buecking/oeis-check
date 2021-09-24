@@ -69,7 +69,7 @@ while : ; do case "$1" in
     (--search|-s) curl "https://oeis.org/search?q=${2}&fmt=text" | less; shift 2 ;;
     (--dconv|-d)
         ! type hops >/dev/null && \
-            2>&1 echo "hops is missing; try `cabal update && cabal install hops && hops --update`" && \
+            2>&1 echo 'hops is missing; try `cabal update && cabal install hops && hops --update`' && \
             exit 2
         deconv $2; shift 2
         ;;
