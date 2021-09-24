@@ -2,7 +2,7 @@
 
 
 DB=~/.oeis-data/stripped
-OPTS="$(getopt -l dup,update,match:,ref:,help -o d:u:h:m:r -n "$(basename $0)" -- "$@")"
+OPTS="$(getopt -l dconv:,dup,update,match:,search:,help -o c:d:u:h:m:s: -n "$(basename $0)" -- "$@")"
 test $? -gt 0 && exit 1
 eval set -- "$OPTS"
 
@@ -12,9 +12,19 @@ usage() {
     1>&2 echo "    --(d)up:    dump duplicate entries"
     1>&2 echo "    --(u)pdate: update oeis seq database"
     1>&2 echo "    --(m)atch:  match some sequence with oeis"
-    1>&2 echo "    --(r)ef:    fetch reference text from oeis"
     1>&2 echo "    --(h)elp:   print this message"
-    1>&2 echo ""
+    1>&2 echo "    --d(c)onv:   find power series for some seq"
+    1>&2 echo "    --(s)earch: valid syntax is as follows:"
+    1>&2 echo "         '1,4,9,16,25,36,64'"
+    1>&2 echo "         '5 8 13 233 39088169'"
+    1>&2 echo "         '\"fermat's little theorem\"'"
+    1>&2 echo "         'author:Guy keyword:nice'"
+    1>&2 echo "         'keyword:nice keyword:more -keyword:base'"
+    1>&2 echo "         'keyword:new -keyword:base'"
+    1>&2 echo "         'id:A64413'"
+    1>&2 echo "         'A64413'"
+    1>&2 echo "         'id:A028284|id:A066948'"
+    1>&2 echo "         'author:njas keyword:less|keyword:dumb'"
     1>&2 echo "(s)hort opts wrapped with parens"
 }
 
@@ -26,6 +36,18 @@ fetch () {
 dups () {
     ! test -s $DB && echo "$DB cannot be found" && exit 2
     sort -k2 $DB | uniq -s 9 -D
+}
+
+
+deconv () {
+    norm="map (.*.) | add"
+    d=`jq -n "[$1] | length"`
+    N=`jq -n "[$1] | $norm | sqrt"`
+    hops --dump --prec=$d \
+      | jq -c "if (.seq | length) == $d then . else empty end" \
+      | hops --prec=$d "{$1}/stdin" \
+      | jq -c "if (.seq | length) == $d then . else empty end" \
+      | jq -c "if (.seq | $norm) < $N then . else empty end"
 }
 
 match () {
@@ -44,7 +66,11 @@ while : ; do case "$1" in
     (--update|-u) fetch; shift ;;
     (--dup|-d)    dups ; shift ;;
     (--match|-m)  match $2 ; shift 2 ;;
-    (--ref|-r)    curl "https://oeis.org/search?q=id:${2}&fmt=text"; shift 2 ;;
+    (--search|-s) curl "https://oeis.org/search?q=${2}&fmt=text" | less; shift 2 ;;
+    (--dconv|-d)
+        type hops > /dev/null || echo "cabal update && cabal install hops # hops not installed"
+        type hops > /dev/null || break
+        deconv $2; shift 2 ;;
     (--help|-h)   usage; exit 2; ;;
     (*) break;;
 esac; done
